@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chronfix"
+version = "0.1.0"
+description = "Apply timing corrections to MiniSEED, given a chronos correction file."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Maleen Kidiwela", email = "seismic@uw.edu"}]
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.21",
+    "pandas>=1.3",
+    "obspy>=1.5",
+]
+
+[project.scripts]
+chronfix-apply = "chronfix.scripts.apply_correction:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["chronfix*"]
