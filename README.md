@@ -15,7 +15,7 @@ be released as its own repository.
 ## Install
 
 ```bash
-git clone https://github.com/<you>/chronfix.git
+git clone https://github.com/coszo-hub/chronfix.git
 cd chronfix
 pip install -e .
 ```
