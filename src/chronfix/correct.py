@@ -161,6 +161,20 @@ def _resample(tr: Trace, model: ClockModel) -> Trace | None:
     # Input data on apparent-time grid relative to apparent_start.
     apparent_grid = np.arange(n_in, dtype=np.float64) / fs
 
+    # Snap near-boundary float-precision overshoots back onto the grid;
+    # without this, the very first output sample can land a few ULP below
+    # apparent_grid[0] and np.interp returns NaN, triggering the
+    # trailing-NaN truncation below to drop the entire output.
+    eps = 0.5 / fs
+    near_left  = ((apparent_targets_offsets < apparent_grid[0]) &
+                  (apparent_targets_offsets > apparent_grid[0] - eps))
+    near_right = ((apparent_targets_offsets > apparent_grid[-1]) &
+                  (apparent_targets_offsets < apparent_grid[-1] + eps))
+    if near_left.any():
+        apparent_targets_offsets[near_left] = apparent_grid[0]
+    if near_right.any():
+        apparent_targets_offsets[near_right] = apparent_grid[-1]
+
     data_in = np.asarray(tr.data, dtype=np.float64)
     data_out = np.interp(apparent_targets_offsets, apparent_grid, data_in,
                          left=np.nan, right=np.nan)

@@ -15,8 +15,14 @@ be released as its own repository.
 ## Install
 
 ```bash
+git clone https://github.com/<you>/chronfix.git
+cd chronfix
 pip install -e .
 ```
+
+(Or unzip a downloaded archive instead of cloning.) The `-e` flag
+installs in editable mode so source edits are picked up without a
+reinstall; drop it for a regular install.
 
 ## Usage
 
@@ -54,13 +60,16 @@ what the correction does.
 
 For every sample's apparent timestamp `t`, chronfix subtracts
 `Δt(t)`, where Δt(t) is the linear interpolation of the cleaned
-hourly Δt within stable segments. Pink bands are trigger intervals
-(clock discontinuities); chronfix splits the output mseed at each.
+hourly Δt within stable segments. The cleaned hourly Δt is itself the
+output of a per-segment robust smoother (rolling median + light moving
+average) that removes picker-quantum jitter without imposing a
+functional form on the drift. Pink bands are trigger intervals (clock
+discontinuities); chronfix splits the output mseed at each.
 
 ![Correction function applied to HYS14 timestamps](examples/HYS14/figures/correction_function.png)
 
-The shifted samples reach ±50 s during the worst drift episodes. From
-May 2025 onward the clock is healthy and the function sits at zero.
+The shifted samples reach ±50 s during the worst drift episodes. After
+the last resync, the clock is healthy and the function sits at zero.
 
 ### 2 — Hourly peak-lag track: before vs after
 
@@ -81,7 +90,7 @@ clock error.
 
 The same cross-correlations stacked into a long-term reference (top
 row) and a daily 2D plot (bottom row). Reference RMS rises from 12.8
-to 33.1 (≈ 2.6× stronger) because each daily CCF is now coherently
+to 40.6 (≈ 3.2× stronger) because each daily CCF is now coherently
 aligned at lag 0 instead of smearing across ±50 s.
 
 ![Before vs after CCF](examples/HYS14/figures/before_after_ccf.png)
