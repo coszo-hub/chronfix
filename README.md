@@ -15,7 +15,7 @@ be released as its own repository.
 ## Install
 
 ```bash
-git clone https://github.com/coszo-hub/chronfix.git
+git clone https://github.com/<you>/chronfix.git
 cd chronfix
 pip install -e .
 ```
@@ -62,7 +62,7 @@ For every sample's apparent timestamp `t`, chronfix subtracts
 `Δt(t)`, where Δt(t) is the linear interpolation of the cleaned
 hourly Δt within stable segments. The cleaned hourly Δt is itself the
 output of a per-segment robust smoother (rolling median + light moving
-average) that removes picker-quantum jitter without imposing a
+average) that removes per-sample lag-pick jitter without imposing a
 functional form on the drift. Pink bands are trigger intervals (clock
 discontinuities); chronfix splits the output mseed at each.
 
@@ -140,6 +140,89 @@ chronfix/
 │   └── HYS14/                     bundled correction file + figures
 └── tests/
 ```
+
+## Uncertainty of the correction
+
+The corrected timestamp at any sample is `t_corr = t − Δt(t)`. The
+uncertainty on `Δt(t)` — and therefore on `t_corr` — comes from three
+sources, only two of which contribute under the actual chronfix method:
+
+| source | scale (HYS14) | included in σ_total? |
+|---|---|---|
+| σ_lag — CCF peak-lag pick uncertainty (parabolic fit to envelope-of-CC², propagated from off-peak noise) | ≈ 2 ms (median), 5 ms (p90) | yes |
+| σ_model — per-segment scatter of raw cleaned Δt vs the deployed smoothed model (robust MAD per inter-trigger segment) | ≈ 0.077 s (median), 0.108 s (p90) | yes |
+| σ_nonlin — deviation from a whole-segment linear fit | ≈ 0.3 s (median), 2.7 s (p90) | **no** — see below |
+
+**Reported uncertainty for the chronfix correction:**
+
+> **σ_total ≈ 0.08 s typical, ≈ 0.11 s at the 90th percentile**, with a
+> worst-case ≈ 0.17 s on a single long curved segment. Dominated by the
+> 0.125 s lag-pick sample interval (one sample at fs = 8 Hz, RMS
+> quantization floor 0.125/√12 ≈ 0.036 s) propagated through the per-segment
+> smoother. End-effects within ~½ smoother window (~12 h) of a trigger
+> boundary can be slightly larger (~0.1 s transient), but stay below
+> the same scale.
+
+**Relative uncertainty.** Drift magnitudes on HYS14 reach ±50 s within
+a single segment; the longest curved segment spans 56.7 s of total
+drift. The 0.17 s worst-case σ on that segment is **≈ 0.3 %** of the
+drift it is correcting. Across the full record, σ_total / |Δt| stays
+in the sub-percent range whenever the correction is meaningfully
+nonzero. The correction is small relative to the signal it removes,
+not relative to the timing precision of any individual seismic
+measurement.
+
+### Why σ_nonlin is excluded
+
+A linear-drift assumption *would* introduce a multi-second error
+(σ_nonlin above) — drift segments are visibly curved. Chronfix does
+not make that assumption. It linearly interpolates between hourly
+samples of the **24 h rolling-median + 6 h moving-average** smoothed
+Δt model, which tracks curvature on multi-hour timescales. The
+interpolation error between two adjacent smoothed hourly samples is
+bounded by the second derivative of the smoothed curve over a 1 h
+step and is well below the 0.125 s sample interval, so it does not enter
+σ_total.
+
+The σ_nonlin number is reported anyway as a sanity check on what a
+worse method (whole-segment linear fit) would produce, and to flag
+that the choice of "what time you apply a measured drift to" does
+matter — but only if you measure drift over a long window and don't
+track curvature within it.
+
+### How σ_total is computed
+
+The diagnostic script lives in the chronos package
+(`chronos/scripts/uncertainty.py`) and writes:
+
+```
+data/uncertainty/<station>/
+    sigma_lag_hourly.npy
+    sigma_model_hourly.npy
+    sigma_nonlin_hourly.npy   # reference only, not in total
+    sigma_total_hourly.npy    # √(σ_lag² + σ_model²)
+    segment_summary.csv
+    uncertainty.png
+```
+
+For the HYS14 worked example, the per-segment residual (raw cleaned Δt
+minus modeled Δt) has median ≈ 0.000 s and MAD ≤ 0.115 s on every
+inter-trigger segment, including the longest curved ramp (126 days /
+56.7 s of total drift). No detectable timing signal remains in the
+residuals — what is left is consistent with the 0.125 s lag-pick sample interval.
+
+### Caveats
+
+- **Higher sample-rate channels** (e.g. HHZ at 200 Hz) reuse the same
+  Δt(t), but the 0.125 s lag-pick sample interval here was set by the 8 Hz analysis
+  rate. Sub-0.125-s structure in true Δt is not resolved and is not
+  reflected in σ_total.
+- **Days where chronos has no Δt** (NaN after outlier filtering) are
+  skipped entirely; they do not get a degraded correction with a
+  larger σ. They get no correction.
+- σ_total is a per-hour quantity. Within an hour, the same uncertainty
+  applies to every sample (the smoothed model is interpolated linearly
+  between hourly anchors).
 
 ## Across-trigger gaps and overlaps
 
